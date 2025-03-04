@@ -1,4 +1,17 @@
-# WikiExtractor
+# DAGWikiExtractor (WIP)
+this repo will create the pre-training dataset for a new project of mine, which will be called something like DAGSeq2DAGSeq. Basically we're looking to download wikipedia and format the data in a manner conducive to training LLMs on these wikipedia documents with the unique quality that we'll be keeping links between pages and using those links to direct a cross-attention mechanism.
+
+### TODO:
+- [ ] reformat links from the current mess of characters to \[[text in passage]](name of document being referenced) format (we could use alternatives to brackets & paranethesis if necessary)
+- [ ] set filenames to `name of the document being referenced.md` rather than the current `wiki_XX`
+- [ ] set files to only contain the text of interest rather than ID's and links and whatnot in json/xml
+- [ ] convert HTML formatting option to markdown
+- [ ] remove unnecessary options. we always need --links, --markdown (previously --html), and -b 0 (makes each document exist within its own file
+- [ ] build a BPE tokenizer off random selection of this data
+- [ ] build a dataloader that selects random files for a batch and
+    - [ ] for each chosen document, selects documents referenced to add to the batch. should have options of breadth-first, depth-first, and random walk as well as a depth limit and a total character/token limit
+
+# WikiExtractor (original readme)
 [WikiExtractor.py](http://medialab.di.unipi.it/wiki/Wikipedia_Extractor) is a Python script that extracts and cleans text from a [Wikipedia database backup dump](https://dumps.wikimedia.org/), e.g. https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2 for English.
 
 The tool is written in Python and requires Python 3 but no additional library.
