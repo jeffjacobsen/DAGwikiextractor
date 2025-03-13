@@ -423,10 +423,9 @@ def replaceExternalLinks(text):
 
 def makeExternalLink(url, anchor):
     """Function applied to wikiLinks"""
-    if Extractor.keepLinks:
-        return '<a href="%s">%s</a>' % (urlencode(url), anchor)
-    else:
-        return anchor
+    if not anchor:
+        return url
+    return f'[{anchor}]({url})'
 
 
 def makeExternalImage(url, alt=''):
@@ -485,18 +484,13 @@ def replaceInternalLinks(text):
 
 
 def makeInternalLink(title, label):
+    """Function applied to internal links"""
+    if not label:
+        label = title
     colon = title.find(':')
     if colon > 0 and title[:colon] not in acceptedNamespaces:
         return ''
-    if colon == 0:
-        # drop also :File:
-        colon2 = title.find(':', colon + 1)
-        if colon2 > 1 and title[colon + 1:colon2] not in acceptedNamespaces:
-            return ''
-    if Extractor.keepLinks:
-        return '<a href="%s">%s</a>' % (urlencode(title), label)
-    else:
-        return label
+    return f'[{label}]({title})'
 
 
 # ----------------------------------------------------------------------
@@ -965,18 +959,24 @@ class Extractor():
         text = compact(text, mark_headers=mark_headers)
         return text
 
-    def extract(self, out, html_safe=True):
+    def extract(self, out, html_safe=True, markdown=False):
         """
         :param out: a memory file.
         :param html_safe: whether to escape HTML entities.
+        :param markdown: whether to output in markdown format.
         """
         logging.debug("%s\t%s", self.id, self.title)
         text = ''.join(self.page)
         text = self.clean_text(text, html_safe=html_safe)
 
-        if self.to_json:
+        if markdown:
+            # For markdown output, we just write the cleaned text
+            # No need for doc tags or JSON wrapper
+            out.write(f'# {self.title}\n\n')
+            out.write('\n'.join(text))
+        elif self.to_json:
             json_data = {
-		'id': self.id,
+                'id': self.id,
                 'revid': self.revid,
                 'url': self.url,
                 'title': self.title,
@@ -1237,7 +1237,7 @@ class Extractor():
         #           	    xmlish-element / *wikitext-L3
 
         # A tplarg may contain other parameters as well as templates, e.g.:
-        #   {{{text|{{{quote|{{{1|{{error|Error: No text given}}}}}}}}}}}
+        #   {{{text|{{{quote|{{{1|{{{{{|safesubst:}}}PAGENAME}}}}}}}}}}}
         # hence no simple RE like this would work:
         #   '{{{((?:(?!{{{).)*?)}}}'
         # We must use full CF parsing.

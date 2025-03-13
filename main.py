@@ -2,22 +2,23 @@
 # -*- coding: utf-8 -*-
 
 # =============================================================================
-#  Version: 3.0 (January 24, 2023)
-#  Author: Giuseppe Attardi (attardi@di.unipi.it), University of Pisa
+#  Version: 0.01 (March 13, 2025)
+#  Author: Evin Tunador (evintunador@gmail.com)
 #
-#  Contributors:
-#   Antonio Fuschetto (fuschett@aol.com)
-#   Leonardo Souza (lsouza@amtera.com.br)
-#   Juan Manuel Caicedo (juan@cavorite.com)
-#   Humberto Pereira (begini@gmail.com)
-#   Siegfried-A. Gevatter (siegfried@gevatter.com)
-#   Pedro Assis (pedroh2306@gmail.com)
-#   Wim Muskee (wimmuskee@gmail.com)
-#   Radics Geza (radicsge@gmail.com)
-#   Nick Ulven (nulven@github)
+#  Contributors (pre-fork):
+#   Giuseppe Attardi, University of Pisa (author pre-fork)
+#   Antonio Fuschetto 
+#   Leonardo Souza
+#   Juan Manuel Caicedo 
+#   Humberto Pereira 
+#   Siegfried-A. Gevatter 
+#   Pedro Assis 
+#   Wim Muskee 
+#   Radics Geza 
+#   Nick Ulven 
 #
 # =============================================================================
-#  Copyright (c) 2009-2023. Giuseppe Attardi (attardi@di.unipi.it).
+#  Copyright (c) 2025. Evin Tunador (evintunador@gmail.com).
 # =============================================================================
 #  This file is part of Tanl.
 #
@@ -35,21 +36,11 @@
 # =============================================================================
 
 """Wikipedia Extractor:
-Extracts and cleans text from a Wikipedia database dump and stores output in a
-number of files of similar size in a given directory.
-Each file will contain several documents in the format:
+Extracts and cleans text from a Wikipedia database dump and stores output as 
+individual markdown files in a given directory. Each file will be named after 
+the page title and contain a single Wikipedia article.
 
-    <doc id="" url="" title="">
-        ...
-        </doc>
-
-If the program is invoked with the --json flag, then each file will                                            
-contain several documents formatted as json ojects, one per line, with                                         
-the following structure
-
-    {"id": "", "revid": "", "url": "", "title": "", "text": "..."}
-
-The program performs template expansion by preprocesssng the whole dump and
+The program performs template expansion by preprocessing the whole dump and
 collecting template definitions.
 """
 
@@ -57,18 +48,15 @@ import argparse
 import bz2
 import logging
 import os.path
-import re  # TODO use regex when it will be standard
+import re
 import sys
 from io import StringIO
 from multiprocessing import Queue, get_context, cpu_count
 from timeit import default_timer
 
-from .extract import Extractor, ignoreTag, define_template, acceptedNamespaces
+from extract import Extractor, ignoreTag, define_template, acceptedNamespaces
 
 # ===========================================================================
-
-# Program version
-__version__ = 'a4.0.0'
 
 ##
 # Defined in <siteinfo>
@@ -96,91 +84,41 @@ modules = {
         'convert': lambda x, u, *rest: x + ' ' + u,  # no conversion
     }
 }
-# ----------------------------------------------------------------------
-# Expand using WikiMedia API
-# import json
-
-# def expandTemplates(text):
-#     """Expand templates invoking MediaWiki API"""
-#     text = urlib.urlencodew(text)
-#     base = urlbase[:urlbase.rfind('/')]
-#     url = base + "/w/api.php?action=expandtemplates&format=json&text=" + text
-#     exp = json.loads(urllib.urlopen(url))
-#     return exp['expandtemplates']['*']
 
 # ------------------------------------------------------------------------------
-# Output
+# Modified Output - one file per article
 
 
-class NextFile():
-
+def get_safe_filename(title):
     """
-    Synchronous generation of next available file name.
+    Convert article title to a safe filename
     """
-
-    filesPerDir = 100
-
-    def __init__(self, path_name):
-        self.path_name = path_name
-        self.dir_index = -1
-        self.file_index = -1
-
-    def next(self):
-        self.file_index = (self.file_index + 1) % NextFile.filesPerDir
-        if self.file_index == 0:
-            self.dir_index += 1
-        dirname = self._dirname()
-        if not os.path.isdir(dirname):
-            os.makedirs(dirname)
-        return self._filepath()
-
-    def _dirname(self):
-        char1 = self.dir_index % 26
-        char2 = int(self.dir_index / 26) % 26
-        return os.path.join(self.path_name, '%c%c' % (ord('A') + char2, ord('A') + char1))
-
-    def _filepath(self):
-        return '%s/wiki_%02d' % (self._dirname(), self.file_index)
+    # Replace problematic characters with underscore
+    safe_name = re.sub(r'[/\\?%*:|"<>\s]', '_', title)
+    # Ensure filename is not too long
+    if len(safe_name) > 200:
+        safe_name = safe_name[:200]
+    return safe_name + '.md'
 
 
-class OutputSplitter():
-
+class PageWriter:
     """
-    File-like object, that splits output to multiple files of a given max size.
+    Handles writing individual page files
     """
-
-    def __init__(self, nextFile, max_file_size=0, compress=True):
+    def __init__(self, output_dir):
+        self.output_dir = output_dir
+        if not os.path.isdir(output_dir):
+            os.makedirs(output_dir)
+    
+    def write_page(self, id, title, text):
         """
-        :param nextFile: a NextFile object from which to obtain filenames
-            to use.
-        :param max_file_size: the maximum size of each file.
-        :para compress: whether to write data with bzip compression.
+        Write a single page to a file named after the title
         """
-        self.nextFile = nextFile
-        self.compress = compress
-        self.max_file_size = max_file_size
-        self.file = self.open(self.nextFile.next())
-
-    def reserve(self, size):
-        if self.file.tell() + size > self.max_file_size:
-            self.close()
-            self.file = self.open(self.nextFile.next())
-
-    def write(self, data):
-        self.reserve(len(data))
-        if self.compress:
-            self.file.write(data)
-        else:
-            self.file.write(data)
-
-    def close(self):
-        self.file.close()
-
-    def open(self, filename):
-        if self.compress:
-            return bz2.BZ2File(filename + '.bz2', 'w')
-        else:
-            return open(filename, 'w')
+        filename = get_safe_filename(title)
+        filepath = os.path.join(self.output_dir, filename)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(text)
+        return filepath
 
 
 # ----------------------------------------------------------------------
@@ -265,7 +203,7 @@ def load_templates(file, output_file=None):
 
 def decode_open(filename, mode='rt', encoding='utf-8'):
     """
-    Open a file, decode and decompress, depending on extension `gz`, or 'bz2`.
+    Open a file, decode and decompress, depending on extension `gz`, or 'bz2'.
     :param filename: the file to open.
     """
     ext = os.path.splitext(filename)[1]
@@ -335,14 +273,12 @@ def collect_pages(text):
             redirect = False
 
 
-def process_dump(input_file, template_file, out_file, file_size, file_compress,
-                 process_count, html_safe, expand_templates=True):
+def process_dump(input_file, template_file, out_dir, process_count, 
+                 html_safe=False, expand_templates=True):
     """
     :param input_file: name of the wikipedia dump file; '-' to read from stdin
     :param template_file: optional file with template definitions.
-    :param out_file: directory where to store extracted data, or '-' for stdout
-    :param file_size: max size of each extracted file, or None for no max (one file)
-    :param file_compress: whether to compress files with bzip.
+    :param out_dir: directory where to store extracted data
     :param process_count: number of extraction processes to spawn.
     :html_safe: whether to convert entities in text to HTML.
     :param expand_templates: whether to expand templates.
@@ -397,13 +333,7 @@ def process_dump(input_file, template_file, out_file, file_size, file_compress,
         template_load_elapsed = default_timer() - template_load_start
         logging.info("Loaded %d templates in %.1fs", templates, template_load_elapsed)
 
-    if out_file == '-':
-        output = sys.stdout
-        if file_compress:
-            logging.warn("writing to stdout, so no output compression (use an external tool)")
-    else:
-        nextFile = NextFile(out_file)
-        output = OutputSplitter(nextFile, file_size, file_compress)
+    page_writer = PageWriter(out_dir)
 
     # process pages
     logging.info("Starting page extraction from %s.", input_file)
@@ -411,7 +341,7 @@ def process_dump(input_file, template_file, out_file, file_size, file_compress,
 
     # Parallel Map/Reduce:
     # - pages to be processed are dispatched to workers
-    # - a reduce process collects the results, sort them and print them.
+    # - a reduce process collects the results and writes them to individual files.
 
     # fixes MacOS error: TypeError: cannot pickle '_io.TextIOWrapper' object
     Process = get_context("fork").Process
@@ -420,8 +350,8 @@ def process_dump(input_file, template_file, out_file, file_size, file_compress,
     # output queue
     output_queue = Queue(maxsize=maxsize)
 
-    # Reduce job that sorts and prints output
-    reduce = Process(target=reduce_process, args=(output_queue, output))
+    # Reduce job that writes individual files
+    reduce = Process(target=reduce_process, args=(output_queue, page_writer))
     reduce.start()
 
     # initialize jobs queue
@@ -462,8 +392,6 @@ def process_dump(input_file, template_file, out_file, file_size, file_compress,
     # wait for it to finish
     reduce.join()
 
-    if output != sys.stdout:
-        output.close()
     extract_duration = default_timer() - extract_start
     extract_rate = ordinal / extract_duration
     logging.info("Finished %d-process extraction of %d articles in %.1fs (%.1f art/s)",
@@ -484,116 +412,79 @@ def extract_process(jobs_queue, output_queue, html_safe):
         job = jobs_queue.get()  # job is (id, revid, urlbase, title, page)
         if job:
             out = StringIO()  # memory buffer
-            Extractor(*job[:-1]).extract(out, html_safe)  # (id, urlbase, title, page)
+            # We need to modify the extract method to produce markdown output
+            Extractor(*job[:-1]).extract(out, html_safe, markdown=True)  # (id, urlbase, title, page)
             text = out.getvalue()
-            output_queue.put((job[-1], text))  # (ordinal, extracted_text)
+            output_queue.put((job[-1], job[0], job[3], text))  # (ordinal, id, title, extracted_text)
             out.close()
         else:
             break
 
 
-def reduce_process(output_queue, output):
+def reduce_process(output_queue, page_writer):
     """
-    Pull finished article text, write series of files (or stdout)
+    Pull finished article text, write to individual files
     :param output_queue: text to be output.
-    :param output: file object where to print.
+    :param page_writer: PageWriter object to handle file creation.
     """
-
     interval_start = default_timer()
-    period = 100000
-    # FIXME: use a heap
-    ordering_buffer = {}  # collected pages
-    next_ordinal = 0  # sequence number of pages
+    period = 1000
+    pages_written = 0
+
     while True:
-        if next_ordinal in ordering_buffer:
-            output.write(ordering_buffer.pop(next_ordinal))
-            next_ordinal += 1
-            # progress report
-            if next_ordinal % period == 0:
-                interval_rate = period / (default_timer() - interval_start)
-                logging.info("Extracted %d articles (%.1f art/s)",
-                             next_ordinal, interval_rate)
-                interval_start = default_timer()
-        else:
-            # mapper puts None to signal finish
-            pair = output_queue.get()
-            if not pair:
-                break
-            ordinal, text = pair
-            ordering_buffer[ordinal] = text
-
-
-# ----------------------------------------------------------------------
-
-# Minimum size of output files
-minFileSize = 200 * 1024
+        # mapper puts None to signal finish
+        item = output_queue.get()
+        if not item:
+            break
+            
+        ordinal, id, title, text = item
+        page_writer.write_page(id, title, text)
+        pages_written += 1
+        
+        # progress report
+        if pages_written % period == 0:
+            interval_rate = period / (default_timer() - interval_start)
+            logging.info("Wrote %d articles (%.1f art/s)",
+                         pages_written, interval_rate)
+            interval_start = default_timer()
 
 
 def main():
     global acceptedNamespaces
-    global templateCache
 
     parser = argparse.ArgumentParser(prog=os.path.basename(sys.argv[0]),
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
                                      description=__doc__)
     parser.add_argument("input",
                         help="XML wiki dump file")
-    groupO = parser.add_argument_group('Output')
-    groupO.add_argument("-o", "--output", default="text",
-                        help="directory for extracted files (or '-' for dumping to stdout)")
-    groupO.add_argument("-b", "--bytes", default="1M",
-                        help="maximum bytes per output file (default %(default)s); 0 means to put a single article per file",
-                        metavar="n[KMG]")
-    groupO.add_argument("-c", "--compress", action="store_true",
-                        help="compress output files using bzip")
-    groupO.add_argument("--json", action="store_true",
-                        help="write output in json format instead of the default <doc> format")
-
-    groupP = parser.add_argument_group('Processing')
-    groupP.add_argument("--html", action="store_true",
-                        help="produce HTML output, subsumes --links")
-    groupP.add_argument("-l", "--links", action="store_true",
-                        help="preserve links")
-    groupP.add_argument("-ns", "--namespaces", default="", metavar="ns1,ns2",
+    parser.add_argument("-o", "--output", default="text",
+                        help="output directory")
+    parser.add_argument("-l", "--links", action="store_true", default=True,
+                        help="preserve links in markdown format")
+    parser.add_argument("-ns", "--namespaces", default="", metavar="ns1,ns2",
                         help="accepted namespaces")
-    groupP.add_argument("--templates",
+    parser.add_argument("--templates",
                         help="use or create file containing templates")
-    groupP.add_argument("--no-templates", action="store_true",
+    parser.add_argument("--no-templates", action="store_true",
                         help="Do not expand templates")
-    groupP.add_argument("--html-safe", default=True,
-                        help="use to produce HTML safe output within <doc>...</doc>")
     default_process_count = cpu_count() - 1
     parser.add_argument("--processes", type=int, default=default_process_count,
                         help="Number of processes to use (default %(default)s)")
-
-    groupS = parser.add_argument_group('Special')
-    groupS.add_argument("-q", "--quiet", action="store_true",
+    parser.add_argument("-q", "--quiet", action="store_true",
                         help="suppress reporting progress info")
-    groupS.add_argument("--debug", action="store_true",
+    parser.add_argument("--debug", action="store_true",
                         help="print debug info")
-    groupS.add_argument("-a", "--article", action="store_true",
-                        help="analyze a file containing a single article (debug option)")
-    groupS.add_argument("-v", "--version", action="version",
-                        version='%(prog)s ' + __version__,
-                        help="print program version")
 
     args = parser.parse_args()
 
+    # Always preserve links but in markdown format
     Extractor.keepLinks = args.links
-    Extractor.HtmlFormatting = args.html
-    if args.html:
-        Extractor.keepLinks = True
-    Extractor.to_json = args.json
-
-    try:
-        power = 'kmg'.find(args.bytes[-1].lower()) + 1
-        # 0 bytes means put a single article per file.
-        file_size = 0 if args.bytes == '0' else int(args.bytes[:-1]) * 1024 ** power
-        if file_size and file_size < minFileSize:
-            raise ValueError()
-    except ValueError:
-        logging.error('Insufficient or invalid size: %s', args.bytes)
-        return
+    
+    # We don't want HTML formatting
+    Extractor.HtmlFormatting = False
+    
+    # We don't want JSON output
+    Extractor.toJson = False
 
     if args.namespaces:
         acceptedNamespaces = set(args.namespaces.split(','))
@@ -609,35 +500,21 @@ def main():
 
     input_file = args.input
 
+    # Don't ignore links - we want to convert them to markdown
     if not Extractor.keepLinks:
         ignoreTag('a')
 
-    # sharing cache of parser templates is too slow:
-    # manager = Manager()
-    # templateCache = manager.dict()
-
-    if args.article:
-        if args.templates:
-            if os.path.exists(args.templates):
-                with open(args.templates) as file:
-                    load_templates(file)
-
-        urlbase = ''
-        with open(input_file) as input:
-            for id, revid, title, page in collect_pages(input):
-                Extractor(id, revid, urlbase, title, page).extract(sys.stdout)
-        return
-
     output_path = args.output
-    if output_path != '-' and not os.path.isdir(output_path):
+    if not os.path.isdir(output_path):
         try:
             os.makedirs(output_path)
         except:
             logging.error('Could not create: %s', output_path)
             return
 
-    process_dump(input_file, args.templates, output_path, file_size,
-                 args.compress, args.processes, args.html_safe, not args.no_templates)
+    # Process the dump, one file per article
+    process_dump(input_file, args.templates, output_path, args.processes, 
+                 html_safe=False, expand_templates=not args.no_templates)
 
 if __name__ == '__main__':
     main()

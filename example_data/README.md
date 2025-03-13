@@ -1,1 +1,0 @@
-`./desired/` is not finished. I need to figure out how to remove all the % stuff and how to flip the [[]] parts with the () parts
