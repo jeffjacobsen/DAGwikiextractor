@@ -68,7 +68,7 @@ from .extract import Extractor, ignoreTag, define_template, acceptedNamespaces
 # ===========================================================================
 
 # Program version
-__version__ = '3.0.7'
+__version__ = 'a4.0.0'
 
 ##
 # Defined in <siteinfo>

@@ -1,8 +1,7 @@
 from setuptools import setup, find_packages
 import re
 
-from wikiextractor.WikiExtractor import __version__
-
+from DAGwikiextractor.WikiExtractor import __version__
 
 def get_version(version):
     if re.match(r'^\d+\.\d+$', version):
@@ -13,17 +12,17 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name='wikiextractor',
+    name='DAGwikiextractor',
     version=get_version(__version__),
-    author='Giuseppe Attardi',
-    author_email='attardi@gmail.com',
-    description='A tool for extracting plain text from Wikipedia dumps',
+    author='Evin Tunador (previously Giuseppe Attardi)',
+    author_email='evintunador@gmail.com',
+    description='A tool for extracting directed acyclic text-attributed graphs from Wikipedia dumps',
     long_description=long_description,
     long_description_content_type="text/markdown",
     license='GNU Affero General Public License',
     install_requires=[],
-    url="https://github.com/attardi/wikiextractor",
-    packages=find_packages(include=["wikiextractor"]),
+    url="https://github.com/evintunador/DAGwikiextractor",
+    packages=find_packages(include=["DAGwikiextractor"]),
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
@@ -33,8 +32,8 @@ setup(
      ],
     entry_points={
         "console_scripts": [
-            "wikiextractor = wikiextractor.WikiExtractor:main",
-            "extractPage = wikiextractor.extractPage:main",
+            "DAGwikiextractor = DAGwikiextractor.WikiExtractor:main",
+            "DAGextractPage = DAGwikiextractor.extractPage:main",
             ]
         },
     python_requires='>=3.6',
