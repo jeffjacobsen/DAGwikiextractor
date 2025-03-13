@@ -4,10 +4,11 @@ this repo will create the pre-training dataset for a new project of mine, which 
 ### TODO:
 - [x] simplify repo by making it not a package
 - [x] remove unnecessary options. we always need --links, --markdown (previously --html), and -b 0 (makes each document exist within its own file
-- [ ] reformat links from the current mess of characters to \[[text in passage]](name of document being referenced) format (we could use alternatives to brackets & paranethesis if necessary)
-- [ ] set filenames to `name of the document being referenced.md` rather than the current `wiki_XX`
-- [ ] set files to only contain the text of interest rather than ID's and links and whatnot in json/xml
+- [x] reformat links from the current mess of characters to \[text in passage](name of document being referenced) format
+- [x] set filenames to `name of the document being referenced.txt` rather than `wiki_XX`
+- [x] set files to only contain the text of interest rather than ID's and links and whatnot in json/xml
 - [ ] convert HTML formatting option to markdown
+- [ ] add backlinks to the end of each piece of text
 - [ ] build a BPE tokenizer off random selection of this data
 - [ ] build a dataloader that selects random files for a batch and
     - [ ] for each chosen document, selects documents referenced to add to the batch. should have options of breadth-first, depth-first, and random walk as well as a depth limit and a total character/token limit
