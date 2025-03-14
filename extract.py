@@ -71,7 +71,7 @@ def clean(extractor, text, expand_templates=False, html_safe=True):
     """
     Transforms wiki markup. If the command line flag --escapedoc is set then the text is also escaped
     @see https://www.mediawiki.org/wiki/Help:Formatting
-    :param extractor: the Extractor t use.
+    :param extractor: the Extractor to use.
     :param text: the text to clean.
     :param expand_templates: whether to perform template expansion.
     :param html_safe: whether to convert reserved HTML characters to entities.
@@ -115,10 +115,10 @@ def clean(extractor, text, expand_templates=False, html_safe=True):
         text = bold.sub(r'<b>\1</b>', text)
         text = italic.sub(r'<i>\1</i>', text)
     else:
-        text = bold_italic.sub(r'\1', text)
-        text = bold.sub(r'\1', text)
-        text = italic_quote.sub(r'"\1"', text)
-        text = italic.sub(r'"\1"', text)
+        text = bold_italic.sub(r'***\1***', text)
+        text = bold.sub(r'**\1**', text)
+        text = italic_quote.sub(r'*"\1"*', text)
+        text = italic.sub(r'*\1*', text)
         text = quote_quote.sub(r'"\1"', text)
     # residuals of unbalanced quotes
     text = text.replace("'''", '').replace("''", '"')
@@ -188,7 +188,6 @@ listItem = {'*': '<li>%s</li>', '#': '<li>%s</<li>', ';': '<dt>%s</dt>',
 
 def compact(text, mark_headers=False):
     """Deal with headers, lists, empty sections, residuals of tables.
-    :param text: convert to HTML
     """
 
     page = []  # list of paragraph
@@ -209,9 +208,12 @@ def compact(text, mark_headers=False):
         m = section.match(line)
         if m:
             title = m.group(2)
-            lev = len(m.group(1))
-            if Extractor.HtmlFormatting:
-                page.append("<h%d>%s</h%d>" % (lev, title, lev))
+            lev = len(m.group(1)) # number of '=' characters
+            
+            # Convert to Markdown header (# for h1, ## for h2, etc.)
+            header_prefix = '#' * lev
+            page.append(f"{header_prefix} {title}")
+
             if title and title[-1] not in '!?':
                 title += '.'
 
@@ -259,7 +261,18 @@ def compact(text, mark_headers=False):
                     line = line[l:].strip()
                 page.append(listItem[type] % line)
             else:
-                continue
+                # Convert lists to Markdown
+                if line[0] == '*':
+                    # Bullet list becomes "- " in Markdown
+                    indent = line.count('*')
+                    content = line.lstrip('*').strip()
+                    page.append('  ' * (indent-1) + '- ' + content)
+                elif line[0] == '#':
+                    # Numbered list becomes "1. " in Markdown (or other numbers)
+                    indent = line.count('#')
+                    content = line.lstrip('#').strip()
+                    page.append('  ' * (indent-1) + '1. ' + content)
+                # Handle definition lists (;:) - could convert to bold + indentation
         elif len(listLevel):    # implies Extractor.HtmlFormatting
             for c in reversed(listLevel):
                 page.append(listClose[c])
