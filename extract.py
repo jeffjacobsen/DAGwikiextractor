@@ -968,9 +968,53 @@ class Extractor():
 
         text = clean(self, text, expand_templates=expand_templates,
                      html_safe=html_safe)
+        
+        lines = compact(text, mark_headers=mark_headers)
+        
+        # Remove unwanted sections (references, see also, etc)
+        lines = self.remove_unwanted_sections(lines)
 
-        text = compact(text, mark_headers=mark_headers)
-        return text
+        return lines
+
+    def remove_unwanted_sections(self, lines):
+        """Remove sections that are not useful for language understanding.
+        
+        This includes References, See also, External links, etc.
+        """
+        unwanted_headers = [
+            "references", "see also", "sources", "citations", 
+            "external links", "further reading", "bibliography",
+            "notes", "footnotes"
+        ]
+        
+        # Split the text into lines for processing
+        result_lines = []
+        
+        skip_section = False
+        current_section = None
+        
+        for line in lines:
+            # Check if this line is a header
+            header_match = re.match(r'^(#{1,6})\s+(.*?)(?:\s*#*\s*)?$', line)
+            
+            if header_match:
+                # Found a header, check if it's one we want to skip
+                header_text = header_match.group(2).strip()
+                
+                if any(unwanted in header_text.lower() for unwanted in unwanted_headers):
+                    # This is an unwanted section, start skipping
+                    skip_section = True
+                    current_section = header_text
+                else:
+                    # This is a wanted section, stop skipping
+                    skip_section = False
+                    current_section = header_text
+                    result_lines.append(line)
+            elif not skip_section:
+                # Only add lines if we're not in a section we want to skip
+                result_lines.append(line)
+        
+        return result_lines
 
     def extract(self, out, html_safe=True, markdown=False):
         """

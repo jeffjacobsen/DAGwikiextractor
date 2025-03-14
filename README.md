@@ -8,6 +8,7 @@ this repo will create the pre-training dataset for a new project of mine, which 
 - [x] set filenames to `name of the document being referenced.txt` rather than `wiki_XX`
 - [x] set files to only contain the text of interest rather than ID's and links and whatnot in json/xml
 - [x] convert HTML formatting option to markdown
+- [x] exclude the references/see also/citations/bibliography/etc sections at the end that wouldn't be very useful for NLP
 - [ ] add backlinks to the end of each piece of text
 - [ ] build a BPE tokenizer off random selection of this data
 - [ ] build a dataloader that selects random files for a batch and
